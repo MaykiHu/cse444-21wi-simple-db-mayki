@@ -12,6 +12,9 @@ import java.util.Iterator;
 public class Tuple implements Serializable {
 
     private static final long serialVersionUID = 1L;
+    private TupleDesc schema;  // the descriptor/schema for this tuple
+    private Field[] fields;  // data for each field
+    private RecordId recID;  // RecordID for this tuple
 
     /**
      * Create a new tuple with the specified schema (type).
@@ -21,15 +24,15 @@ public class Tuple implements Serializable {
      *            instance with at least one field.
      */
     public Tuple(TupleDesc td) {
-        // some code goes here
+        schema = td;
+        fields = new Field[schema.numFields()];
     }
 
     /**
      * @return The TupleDesc representing the schema of this tuple.
      */
     public TupleDesc getTupleDesc() {
-        // some code goes here
-        return null;
+        return schema;
     }
 
     /**
@@ -37,8 +40,7 @@ public class Tuple implements Serializable {
      *         be null.
      */
     public RecordId getRecordId() {
-        // some code goes here
-        return null;
+        return recID;
     }
 
     /**
@@ -48,7 +50,7 @@ public class Tuple implements Serializable {
      *            the new RecordId for this tuple.
      */
     public void setRecordId(RecordId rid) {
-        // some code goes here
+        recID = rid;
     }
 
     /**
@@ -60,7 +62,8 @@ public class Tuple implements Serializable {
      *            new value for the field.
      */
     public void setField(int i, Field f) {
-        // some code goes here
+        // @spec.requires param i is valid index
+        fields[i] = f;
     }
 
     /**
@@ -70,8 +73,7 @@ public class Tuple implements Serializable {
      *            field index to return. Must be a valid index.
      */
     public Field getField(int i) {
-        // some code goes here
-        return null;
+        return fields[i];  // @spec.requires param i is valid index
     }
 
     /**
@@ -83,8 +85,14 @@ public class Tuple implements Serializable {
      * where \t is any whitespace (except a newline)
      */
     public String toString() {
-        // some code goes here
-        throw new UnsupportedOperationException("Implement this");
+        String contents = "";
+        for (int i = 0; i < fields.length; i++) {
+            contents += getField(i);
+            if (i != fields.length - 1) {  // if not last column
+                contents += "\t";
+            }
+        }
+        return contents;
     }
 
     /**
@@ -93,8 +101,7 @@ public class Tuple implements Serializable {
      * */
     public Iterator<Field> fields()
     {
-        // some code goes here
-        return null;
+        return Arrays.asList(fields).iterator();  // use array list iterator
     }
 
     /**
@@ -102,6 +109,7 @@ public class Tuple implements Serializable {
      * */
     public void resetTupleDesc(TupleDesc td)
     {
-        // some code goes here
+        schema = td;
+        fields = new Field[schema.numFields()];
     }
 }
