@@ -26,13 +26,18 @@ public class BufferPool {
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
 
+    private int numPages;  // max num of pages allowed in this buffer pool
+    // collection of all pages in this pool
+    private ConcurrentHashMap<PageId, Page> pages;
+
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
      * @param numPages maximum number of pages in this buffer pool.
      */
     public BufferPool(int numPages) {
-        // some code goes here
+        this.numPages = numPages;
+        pages = new ConcurrentHashMap<PageId, Page>();
     }
     
     public static int getPageSize() {
@@ -64,10 +69,17 @@ public class BufferPool {
      * @param pid the ID of the requested page
      * @param perm the requested permissions on the page
      */
-    public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
+    public Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
-        // some code goes here
-        return null;
+        if (pages.containsKey(pid)) {  // if page is present
+            return pages.get(pid);
+        }  // page wasn't present
+        if (pages.size() < numPages) {  // if still empty pages, add page
+            DbFile file = Database.getCatalog().getDatabaseFile(pid.getTableId());
+            pages.put(pid, file.readPage(pid));
+            return pages.get(pid);  // return added page
+        }  // else, insufficient space and throw DbException (for lab 1)
+        throw new DbException("Insufficient space in buffer pool");
     }
 
     /**
@@ -79,7 +91,7 @@ public class BufferPool {
      * @param tid the ID of the transaction requesting the unlock
      * @param pid the ID of the page to unlock
      */
-    public  void releasePage(TransactionId tid, PageId pid) {
+    public void releasePage(TransactionId tid, PageId pid) {
         // some code goes here
         // not necessary for lab1|lab2
     }

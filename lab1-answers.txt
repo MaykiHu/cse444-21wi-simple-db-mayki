@@ -1,0 +1,51 @@
+Lab1 Overview:
+Lab 1 was about how our data files pass through a SQL server on a basic scale,
+up to scanning a simple table at the end.  Specifically, the implementation
+up to SeqScan as the final result performed on the fun end file
+in 2.7.  Using the example from 2.7, which is just a txt file converted to
+.dat (HeapFile's format) I will explain what our lab did!
+In lab 1, we are able to take files from disk (that we manually make and add
+for now) and add them to the BufferPool.  The files that are on disk
+are our HeapFiles where we read from, and then cache the recent read pages
+as HeapPages to the BufferPool.  Each HeapFile are DbFiles, and these files
+contain data in the form of tables and the tuples in the tables.  To make
+sure we have access to these tables of interest, we have a Catalog that
+tables are added to.  From the Database, we then have global access to
+the Catalog and the BufferPool.  When a query is then processed, such as
+SeqScan in the test.java, calls will be made to the Database interacting
+with the Catalog to get the table on the HeapFile and the affected tuple(s)
+from the table.  We have implemented Tuple and TupleDesc to identify
+a table's schema in TupleDesc and the Tuple's data.
+
+Design Decisions:
+To keep things to a minimum, I often went off spec details or hints in code
+to implement or use certain data structures for implementation.
+For TupleDesc, I decided not to implement hashCode (for now, unless needed)
+because tuples are of a fixed size.  I did not need to use hashmap where
+I could then use arrays for both TupleDesc and Tuple due to them being
+fixed sizes.
+
+Since I wanted quick access to cached data/files by information known
+like their Ids, using hashMaps would be sufficient time-complexity wise
+compared to arrays and arraylists that can access only by index.  It would
+be hard to remember storage by index!  Additionally, I checked import
+statements and reaffirmed this decision by the import of concurrent hashmaps.
+Another design decision was if there were iterators I could use from
+library, I would use them over implementing an iterator for consistency and
+need?  I felt there would not be a significant difference to make another
+iterator if there was one that could do it already (like throwing
+UnsupportedException for removing an Arrays.asList iterator).  That's why,
+with the exception of HeapFile, I used Array's asList iterator.
+
+Example Unit Test:
+I noticed in the TupleDesc we had to implement an iterator.  It isn't
+specifically tested for (I used it in SeqScan and system test passed,
+so it didn't impact the result), but it may be a good test to include.
+It can traverse the iterator elements of 2 of the same td, one by
+for loop and one using iterator, to make sure the traversal is the
+same.
+
+Wrap-Up:
+I didn't make changes to the API.  I think elements of my code
+is completed for part 1 but I won't know until I get the tests
+ran on your end.  :)
