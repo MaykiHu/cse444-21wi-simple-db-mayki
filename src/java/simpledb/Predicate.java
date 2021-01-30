@@ -8,6 +8,9 @@ import java.io.Serializable;
 public class Predicate implements Serializable {
 
     private static final long serialVersionUID = 1L;
+    private int fieldIdx;  // the field index to compare passed in tuples to
+    private Op op;  // the operation for comparison
+    private Field operand;  // the field value to compare passed in tuples to
 
     /** Constants used for return codes in Field.compare */
     public enum Op implements Serializable {
@@ -55,7 +58,9 @@ public class Predicate implements Serializable {
      *            field value to compare passed in tuples to
      */
     public Predicate(int field, Op op, Field operand) {
-        // some code goes here
+        fieldIdx = field;
+        this.op = op;
+        this.operand = operand;
     }
 
     /**
@@ -63,8 +68,7 @@ public class Predicate implements Serializable {
      */
     public int getField()
     {
-        // some code goes here
-        return -1;
+        return fieldIdx;
     }
 
     /**
@@ -72,8 +76,7 @@ public class Predicate implements Serializable {
      */
     public Op getOp()
     {
-        // some code goes here
-        return null;
+        return op;
     }
     
     /**
@@ -81,8 +84,7 @@ public class Predicate implements Serializable {
      */
     public Field getOperand()
     {
-        // some code goes here
-        return null;
+        return operand;
     }
     
     /**
@@ -96,8 +98,8 @@ public class Predicate implements Serializable {
      * @return true if the comparison is true, false otherwise.
      */
     public boolean filter(Tuple t) {
-        // some code goes here
-        return false;
+        // Get field number (field_id) of t, then compare to operand field
+        return t.getField(fieldIdx).compare(op, operand);
     }
 
     /**
@@ -105,7 +107,8 @@ public class Predicate implements Serializable {
      * operand_string"
      */
     public String toString() {
-        // some code goes here
-        return "";
+        String predicateStr = "f = " + fieldIdx + " op = " + op.toString();
+        predicateStr += " operand = " + operand.toString();
+        return predicateStr;  // string concat. of fieldIdx, op, and operand
     }
 }

@@ -8,6 +8,10 @@ import java.util.*;
 public class Join extends Operator {
 
     private static final long serialVersionUID = 1L;
+    private JoinPredicate p;  // the predicate to use to join the children
+    private OpIterator child1;  // itr for left/outer relation to join
+    private OpIterator child2;  // itr for right/inner relation to join
+    private Tuple c1Tuple;  // the (outer) tuple to match join on
 
     /**
      * Constructor. Accepts two children to join and the predicate to join them
@@ -21,12 +25,14 @@ public class Join extends Operator {
      *            Iterator for the right(inner) relation to join
      */
     public Join(JoinPredicate p, OpIterator child1, OpIterator child2) {
-        // some code goes here
+        this.p = p;
+        this.child1 = child1;
+        this.child2 = child2;
+        c1Tuple = null;
     }
 
     public JoinPredicate getJoinPredicate() {
-        // some code goes here
-        return null;
+        return p;
     }
 
     /**
@@ -35,8 +41,8 @@ public class Join extends Operator {
      *       alias or table name.
      * */
     public String getJoinField1Name() {
-        // some code goes here
-        return null;
+        // Get field name of child1 from field index (getField1)
+        return child1.getTupleDesc().getFieldName(p.getField1());
     }
 
     /**
@@ -45,8 +51,8 @@ public class Join extends Operator {
      *       alias or table name.
      * */
     public String getJoinField2Name() {
-        // some code goes here
-        return null;
+        // Get field name of child2 from field index (getField2)
+        return child2.getTupleDesc().getFieldName(p.getField2());
     }
 
     /**
@@ -54,21 +60,27 @@ public class Join extends Operator {
      *      implementation logic.
      */
     public TupleDesc getTupleDesc() {
-        // some code goes here
-        return null;
+        // Return merged TupleDesc of child1 followed by child2
+        return TupleDesc.merge(child1.getTupleDesc(), child2.getTupleDesc());
     }
 
     public void open() throws DbException, NoSuchElementException,
             TransactionAbortedException {
-        // some code goes here
+        child1.open();
+        child2.open();
+        super.open();
     }
 
     public void close() {
-        // some code goes here
+        super.close();
+        child1.close();
+        child2.close();
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
-        // some code goes here
+        child1.rewind();
+        child2.rewind();
+        c1Tuple = null;
     }
 
     /**
@@ -90,19 +102,52 @@ public class Join extends Operator {
      * @see JoinPredicate#filter
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
-        // some code goes here
-        return null;
+        // if there are more tuples to match on / still matching outer tuple c1
+        while (child1.hasNext() || c1Tuple != null) {
+            if (c1Tuple == null) {  // if we don't have a specific outer tuple
+                c1Tuple = child1.next();  // get next outer tuple to match on
+            }
+            while (child2.hasNext()) {
+                Tuple c2Tuple = child2.next();
+                if (p.filter(c1Tuple, c2Tuple)) { // if join passes on pred.
+                    // Various information about child1/child2 tuple desc
+                    Tuple newTuple = new Tuple(getTupleDesc());
+                    TupleDesc td1 = child1.getTupleDesc();
+                    TupleDesc td2 = child2.getTupleDesc();
+                    int td1Size = td1.numFields();
+                    int td2Size = td2.numFields();
+                    // Set fields of new tuple (c1 fields, c2 fields)
+                    for (int i = 0; i < td1Size; i++) {
+                        newTuple.setField(i, c1Tuple.getField(i));
+                    }
+                    for (int i = 0; i < td2Size; i++) {
+                        newTuple.setField(i + td1Size, c2Tuple.getField(i));
+                    }
+                    return newTuple;
+                }
+                // join did not pass for this inner tuple c2, keep searching
+            }
+            c1Tuple = null;  // indicate to get new c1Tuple to match on and
+            child2.rewind();  // get fresh set of inner tuples to itr on
+        }
+        return null;  // no more tuples to match on
     }
 
     @Override
     public OpIterator[] getChildren() {
-        // some code goes here
-        return null;
+        return new OpIterator[]{child1, child2};
     }
 
     @Override
     public void setChildren(OpIterator[] children) {
-        // some code goes here
+        // Set children only if different children are given
+        // Inspired by Project implementation
+        if (child1 != children[0]) {
+            child1 = children[0];
+        }
+        if (child2 != children[1]) {
+            child2 = children[1];
+        }
     }
 
 }
