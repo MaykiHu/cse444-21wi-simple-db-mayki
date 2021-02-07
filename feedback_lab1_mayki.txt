@@ -1,0 +1,9 @@
+Feedback for: mayki
+--------------------------------------------------------------
+Total Score: 99
+Unit Test Score: 75
+System Test Score: 5
+Code Score: 9
+Writeup Score: 10
+--------------------------------------------------------------
+"Writeup Feedback:  Good Job! Each component is explained clearly and thoroughly.   Code feedback: Nice job! HeapPage's iterator needs to throw exception for remove   Warning:  Please tag your code properly. For each submission. For both part1 and actual lab, you need to add the tag given in spec"
