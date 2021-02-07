@@ -21,6 +21,8 @@ public class HeapPage implements Page {
 
     byte[] oldData;
     private final Byte oldDataLock=new Byte((byte)0);
+    private boolean dirty;  // if page is dirty
+    private TransactionId dirtyTid;  // the latest tid that did the dirtying
 
     /**
      * Create a HeapPage from a set of bytes of data read from disk.
@@ -238,8 +240,13 @@ public class HeapPage implements Page {
      * @param t The tuple to delete
      */
     public void deleteTuple(Tuple t) throws DbException {
-        // some code goes here
-        // not necessary for lab1
+        int tupleNum = t.getRecordId().getTupleNumber();  // tuple num on page
+        if (!pid.equals(t.getRecordId().getPageId())) {  // tuple not on page
+            throw new DbException("Tuple not on this page");
+        } else if (!isSlotUsed(tupleNum)) {  // tuple slot is already empty
+            throw new DbException("Tuple slot is already empty");
+        }  // No other exceptions, we can delete
+        markSlotUsed(tupleNum, false);  // update header bit to not used
     }
 
     /**
@@ -250,8 +257,22 @@ public class HeapPage implements Page {
      * @param t The tuple to add.
      */
     public void insertTuple(Tuple t) throws DbException {
-        // some code goes here
-        // not necessary for lab1
+        if (getNumEmptySlots() == 0) {  // page full / no empty slots
+            throw new DbException("page is full");
+        } else if (!t.getTupleDesc().equals(td)) {  // tupledesc mismatch
+            throw new DbException("tupledesc is mismatched");
+        }  // No other exceptions, we can insert
+        boolean hasAdded = false;
+        int slotNum = 0;
+        while (!hasAdded) {  // while tuple hasn't been added
+            if (!isSlotUsed(slotNum)) {  // if empty slot found
+                t.setRecordId(new RecordId(pid, slotNum));
+                tuples[slotNum] = t;
+                markSlotUsed(slotNum, true);  // slot now used
+                hasAdded = true;
+            }  // haven't found slot that is empty for adding
+            slotNum++;
+        }
     }
 
     /**
@@ -259,17 +280,18 @@ public class HeapPage implements Page {
      * that did the dirtying
      */
     public void markDirty(boolean dirty, TransactionId tid) {
-        // some code goes here
-	// not necessary for lab1
+        this.dirty = dirty;
+        dirtyTid = tid;
     }
 
     /**
      * Returns the tid of the transaction that last dirtied this page, or null if the page is not dirty
      */
     public TransactionId isDirty() {
-        // some code goes here
-	// Not necessary for lab1
-        return null;      
+        if (dirty) {  // if page is dirty
+            return dirtyTid;
+        }
+        return null;  // page is not dirty
     }
 
     /**
@@ -301,8 +323,12 @@ public class HeapPage implements Page {
      * Abstraction to fill or clear a slot on this page.
      */
     private void markSlotUsed(int i, boolean value) {
-        // some code goes here
-        // not necessary for lab1
+        int byteIndex = i / 8;
+        if (value) {  // if slot used / true, | to copy to 1 bit
+            header[byteIndex] |= (1 << (i % 8));
+        } else {  // slot not used, negate above
+            header[byteIndex] &= ~(1 << (i % 8));
+        }
     }
 
     /**

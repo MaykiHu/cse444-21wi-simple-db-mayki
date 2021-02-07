@@ -8,6 +8,12 @@ public class Insert extends Operator {
 
     private static final long serialVersionUID = 1L;
 
+    private TransactionId tid;  // transaction running the insert
+    private OpIterator child;  // child operator which to read tuples to insert
+    private int tableId;  // table in which to insert tuples
+    private TupleDesc td;  // schema of tuple: ret. count of affected records
+    private boolean fetchCalled;  // if fetchNext has been called
+
     /**
      * Constructor.
      *
@@ -23,24 +29,31 @@ public class Insert extends Operator {
      */
     public Insert(TransactionId t, OpIterator child, int tableId)
             throws DbException {
-        // some code goes here
+        tid = t;
+        this.child = child;
+        this.tableId = tableId;
+        td = new TupleDesc(new Type[]{Type.INT_TYPE});
+        fetchCalled = false;
     }
 
     public TupleDesc getTupleDesc() {
-        // some code goes here
-        return null;
+        return td;
     }
 
     public void open() throws DbException, TransactionAbortedException {
-        // some code goes here
+        child.open();
+        super.open();
     }
 
     public void close() {
-        // some code goes here
+        super.close();
+        child.close();
+        fetchCalled = false;
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
-        // some code goes here
+        child.rewind();
+        fetchCalled = false;
     }
 
     /**
@@ -57,18 +70,36 @@ public class Insert extends Operator {
      * @see BufferPool#insertTuple
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
-        // some code goes here
-        return null;
+        if (fetchCalled) {  // called more than once
+            return null;
+        }  // hasn't been called, so return 1-field tuple of # inserted
+        int numInserted = 0;  // tracks number inserted
+        while (child.hasNext()) {
+            try {
+                Database.getBufferPool().
+                        insertTuple(tid, tableId, child.next());
+                numInserted++;  // now inserted one more :)
+            } catch (Exception e) {  // some exception occured
+                throw new DbException("Could not insert tuple");
+            }
+        }
+        Tuple newTuple = new Tuple(td);
+        newTuple.setField(0, new IntField(numInserted));
+        fetchCalled = true;  // we've called fetchNext() now
+        return newTuple;
     }
 
     @Override
     public OpIterator[] getChildren() {
-        // some code goes here
-        return null;
+        return new OpIterator[] {child};
     }
 
     @Override
     public void setChildren(OpIterator[] children) {
-        // some code goes here
+        // Set child only if different children are given
+        // Inspired by Project implementation
+        if (child != children[0]) {
+            child = children[0];
+        }
     }
 }

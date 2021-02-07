@@ -66,9 +66,7 @@ public class HeapFile implements DbFile {
     // see DbFile.java for javadocs
     public Page readPage(PageId pid) {
         // Read-only, throw IllegalArgumentException if page not in file
-        // Should I also check that file exists?  All exceptions are caught.
-        // Currently, I am only throwing IllegalArgument that spec says
-        // and assuming/@spec.require that file be valid/exists
+        // Should any other exceptions occur, throws them under above exception
         try {
             RandomAccessFile f = new RandomAccessFile(file, "r");
             // store page contents (can store up to page size)
@@ -86,8 +84,14 @@ public class HeapFile implements DbFile {
 
     // see DbFile.java for javadocs
     public void writePage(Page page) throws IOException {
-        // some code goes here
-        // not necessary for lab1
+        // spec: IOException if write fails, otherwise write to disk
+        RandomAccessFile f = new RandomAccessFile(file, "rw");
+        // Store page contents, and offset of where to write
+        byte[] pageContents = page.getPageData();
+        int offset = BufferPool.getPageSize() * page.getId().getPageNumber();
+        f.seek(offset);
+        f.write(pageContents);  // should write fail, def: throws IOException
+        f.close();
     }
 
     /**
@@ -100,17 +104,37 @@ public class HeapFile implements DbFile {
     // see DbFile.java for javadocs
     public ArrayList<Page> insertTuple(TransactionId tid, Tuple t)
             throws DbException, IOException, TransactionAbortedException {
-        // some code goes here
-        return null;
-        // not necessary for lab1
+        // throws Db if tuple cannot be added, IO if file cannot rw
+        ArrayList<Page> newPages = new ArrayList<Page>();
+        for (int pgNo = 0; pgNo < numPages(); pgNo++) {  // traverse pages
+            HeapPage p = (HeapPage) Database.getBufferPool().getPage(tid,
+                    new HeapPageId(getId(), pgNo), Permissions.READ_WRITE);
+            if (p.getNumEmptySlots() != 0) {  // found empty slot to add tuple
+                p.insertTuple(t);
+                newPages.add(p);
+                return newPages;
+            }  // keep traversing for empty slot on page
+        }  // no empty pages to add, so append new page to file
+        FileOutputStream os = new FileOutputStream(file, true);  // append mode
+        os.write(HeapPage.createEmptyPageData());
+        os.close();
+        HeapPage p = (HeapPage) Database.getBufferPool().getPage(tid, new
+                HeapPageId(getId(), numPages() - 1), Permissions.READ_WRITE);
+        p.insertTuple(t);
+        newPages.add(p);
+        return newPages;
     }
 
     // see DbFile.java for javadocs
     public ArrayList<Page> deleteTuple(TransactionId tid, Tuple t) throws DbException,
             TransactionAbortedException {
-        // some code goes here
-        return null;
-        // not necessary for lab1
+        ArrayList<Page> newPages = new ArrayList<Page>();
+        HeapPage p = (HeapPage) Database.getBufferPool().getPage(tid,
+                t.getRecordId().getPageId(), Permissions.READ_WRITE);
+        // throw DbException if tuple not member or cannot be deleted
+        p.deleteTuple(t);
+        newPages.add(p);
+        return newPages;
     }
 
     /**

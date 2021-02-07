@@ -2,6 +2,7 @@ package simpledb;
 
 import java.io.*;
 
+import java.util.*;  // for List/ArrayList
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -73,13 +74,13 @@ public class BufferPool {
         throws TransactionAbortedException, DbException {
         if (pages.containsKey(pid)) {  // if page is present
             return pages.get(pid);
-        }  // page wasn't present
-        if (pages.size() < numPages) {  // if still empty pages, add page
-            DbFile file = Database.getCatalog().getDatabaseFile(pid.getTableId());
-            pages.put(pid, file.readPage(pid));
-            return pages.get(pid);  // return added page
-        }  // else, insufficient space and throw DbException (for lab 1)
-        throw new DbException("Insufficient space in buffer pool");
+        }  // page wasn't present, so look to add
+        if (pages.size() >= numPages) {  // if no space to add page
+            evictPage();
+        }  // Add page that was not present before
+        DbFile file = Database.getCatalog().getDatabaseFile(pid.getTableId());
+        pages.put(pid, file.readPage(pid));
+        return pages.get(pid);  // return added page
     }
 
     /**
@@ -126,6 +127,17 @@ public class BufferPool {
         // not necessary for lab1|lab2
     }
 
+    // Private helper method to add dirtied pages to the cache
+    // (reduces duplicate code)  :)
+    // @param tid the transaction adding the tuple to dirty page
+    // @param dirtiedPages the dirtied pages to add to cache
+    private void addDirtied(TransactionId tid, List<Page> dirtiedPages) {
+        for (Page p : dirtiedPages) {  // mark pages that were dirtied
+            p.markDirty(true, tid);
+            pages.put(p.getId(), p);  // add/replace page dirtied to the cache
+        }
+    }
+
     /**
      * Add a tuple to the specified table on behalf of transaction tid.  Will
      * acquire a write lock on the page the tuple is added to and any other 
@@ -143,8 +155,9 @@ public class BufferPool {
      */
     public void insertTuple(TransactionId tid, int tableId, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
-        // some code goes here
-        // not necessary for lab1
+        DbFile f = Database.getCatalog().getDatabaseFile(tableId);
+        List<Page> dirtiedPages = f.insertTuple(tid, t);
+        addDirtied(tid, dirtiedPages);
     }
 
     /**
@@ -162,8 +175,10 @@ public class BufferPool {
      */
     public  void deleteTuple(TransactionId tid, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
-        // some code goes here
-        // not necessary for lab1
+        DbFile f = Database.getCatalog().getDatabaseFile(
+                    t.getRecordId().getPageId().getTableId());
+        List<Page> dirtiedPages = f.deleteTuple(tid, t);
+        addDirtied(tid, dirtiedPages);
     }
 
     /**
@@ -172,9 +187,9 @@ public class BufferPool {
      *     break simpledb if running in NO STEAL mode.
      */
     public synchronized void flushAllPages() throws IOException {
-        // some code goes here
-        // not necessary for lab1
-
+        for (PageId pid: pages.keySet()) {  // traverse pages by id
+            flushPage(pid);  // flush, but only if dirty
+        }
     }
 
     /** Remove the specific page id from the buffer pool.
@@ -186,8 +201,7 @@ public class BufferPool {
         are removed from the cache so they can be reused safely
     */
     public synchronized void discardPage(PageId pid) {
-        // some code goes here
-        // not necessary for lab1
+        pages.remove(pid);
     }
 
     /**
@@ -195,8 +209,13 @@ public class BufferPool {
      * @param pid an ID indicating the page to flush
      */
     private synchronized  void flushPage(PageId pid) throws IOException {
-        // some code goes here
-        // not necessary for lab1
+        Page p = pages.get(pid);
+        TransactionId dirtyId = p.isDirty();
+        if (dirtyId != null) {  // if page is dirty
+            Database.getCatalog().getDatabaseFile(pid.getTableId())
+                    .writePage(p);  // 1) write dirty page to disk
+            p.markDirty(false, null);  // 2) mark written not dirty
+        }  // 3) written page left in BufferPool
     }
 
     /** Write all pages of the specified transaction to disk.
@@ -211,8 +230,14 @@ public class BufferPool {
      * Flushes the page to disk to ensure dirty pages are updated on disk.
      */
     private synchronized  void evictPage() throws DbException {
-        // some code goes here
-        // not necessary for lab1
+        // order removed not guaranteed :( bc hashmap
+        PageId pid = pages.keySet().iterator().next();
+        try {
+            flushPage(pid);  // if dirty, flush
+        } catch (Exception e) {
+            throw new DbException("Could not flush page");
+        }
+        discardPage(pid);  // remove page from BufferPool
     }
 
 }
