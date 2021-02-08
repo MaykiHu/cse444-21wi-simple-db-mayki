@@ -1,0 +1,61 @@
+Lab 2 Runtimes:
+Query 1 took anywhere between 1.08s (min) to 1.36s (max) to complete.  I ran
+this multiple times because it was the only query that completed running ;-;
+Query 2 did not complete after running for 15 min.  :(
+Query 3 did not complete after running for 5 min.  :(
+(It's because I used nested loop joins.  :<)
+
+Lab 2 Overview:
+This lab was about being able to have the components to operate a simple
+set of queries.  We didn't include every possible operator yet, but the
+simple ones like Join, Filter, Aggregates (String and Integer) and being
+able to Insert and Delete tuples.  To execute a simple query on
+a condition, we wrote the Predicate as the condition and Filter as
+applying the condition (Predicate).  Join is similar in that the matching is
+applied on two tables, so we have a JoinPredicate able to compare a field
+from the first and second table.  We have the Aggregator for String and
+Integer that we wrote to be able to operate aggregates on a single field
+and specifically we had to divide these into String / Integer because
+applying other aggregates like AVG on a string doesn't make sense.  The
+Aggregate class helps determine which Aggregator (String / Int) to use
+and helps provide abstraction for the client simply by computing the
+tuples that match the aggregate!  Lastly, we have the Insert and Delete
+as classes to iterate the inserting and deleting methods spanning across
+HeapPage, HeapFile, and BufferPool.  The BufferPool is in global access
+from the Database, and can communicate and is a manager for the pages
+we accessed and changed (dirtied).  Since BufferPool is the manager,
+Insert and Delete java classes called to BufferPool to manage the tuple
+insertions and deletions.  Within the BufferPool, we would then be able
+to access HeapFile's insert/delete methods.  HeapFile which works with
+HeapPages, would then finally insert/delete tuples on the page by dirtying or
+marking the tuple slots appropriately.
+
+Lab 2 Design Decisions:
+I continued to use the suggested spec (such as nested loop join) and HashMaps
+(Concurrent if it was the import statement) to keep my implementation
+consistent with lab 1 (mainly for HashMap access since I'm familiar with
+accessing by id/key and that's also what was done in lab 1).  Since I did
+use HashMaps however, my eviction policy does not ensure removing the least
+recent or latest page added unfortunately.  Thus, the eviction policy was
+just to remove whatever comes off the keySet (entrySet)'s next() iterator
+because I can't guarantee order of eviction.  It should however remove when
+the BufferPool cache is full and needs a page added (like in getPage), so
+at least removing when current pages >= max pages is the criteria and a new
+page needs to be added.  :(  Nested loop join was the simplest and I chose
+to stick with the simplest just because of time and health atm, but
+unfortunately the tradeoff is Query 2 and 3 aren't able to run efficiently.
+
+Lab 2 Example Unit Test:
+I do not know if it would be too big as a unit test, but testing both one
+insert and one delete of the same tuple consecutively and making sure the
+tuple does not exist afterwards.  Otherwise, having a simple delete of an
+existing tuple may be nice as there was no unit test for delete (only system).
+
+Lab 2 Wrap-Up:
+No changes were made to the API.
+I hopefully don't have any missing/incomplete as although I couldn't run
+query 2 or 3, it was stated in EdStem & spec that this may be the case with
+nested loop joins.  I guess I'd optimize that if it's considered missing.  :)
+I guess one thing is, I did want to refactor a little bit of my Integer
+Aggregator case statements since code is a little redundant but I'm focusing
+on my health atm.  :(  So next time!!  Hope you're doing well.  :)
