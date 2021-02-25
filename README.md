@@ -1,6 +1,6 @@
 # CSE444 Lab 4: Rollback and Recovery
 
-**Due: Friday, March 5th 2020**
+**Due: Friday,  March 5th 2020**
 
 ## Introduction
 
