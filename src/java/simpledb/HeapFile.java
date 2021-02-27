@@ -123,7 +123,7 @@ public class HeapFile implements DbFile {
         os.write(HeapPage.createEmptyPageData());
         os.close();
         HeapPage p = (HeapPage) Database.getBufferPool().getPage(tid, new
-                HeapPageId(getId(), numPages()), Permissions.READ_WRITE);
+                HeapPageId(getId(), numPages() - 1), Permissions.READ_WRITE);
         p.insertTuple(t);
         newPages.add(p);
         return newPages;
