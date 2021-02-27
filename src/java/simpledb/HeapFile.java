@@ -107,19 +107,23 @@ public class HeapFile implements DbFile {
         // throws Db if tuple cannot be added, IO if file cannot rw
         ArrayList<Page> newPages = new ArrayList<Page>();
         for (int pgNo = 0; pgNo < numPages(); pgNo++) {  // traverse pages
+            PageId pid = new HeapPageId(getId(), pgNo);
             HeapPage p = (HeapPage) Database.getBufferPool().getPage(tid,
-                    new HeapPageId(getId(), pgNo), Permissions.READ_WRITE);
+                    pid, Permissions.READ_ONLY);
             if (p.getNumEmptySlots() != 0) {  // found empty slot to add tuple
+                p = (HeapPage) Database.getBufferPool().getPage(tid,
+                        pid, Permissions.READ_WRITE);
                 p.insertTuple(t);
                 newPages.add(p);
                 return newPages;
-            }  // keep traversing for empty slot on page
+            }  // keep traversing for empty slot on page, release current page
+            Database.getBufferPool().releasePage(tid, pid);
         }  // no empty pages to add, so append new page to file
         FileOutputStream os = new FileOutputStream(file, true);  // append mode
         os.write(HeapPage.createEmptyPageData());
         os.close();
         HeapPage p = (HeapPage) Database.getBufferPool().getPage(tid, new
-                HeapPageId(getId(), numPages() - 1), Permissions.READ_WRITE);
+                HeapPageId(getId(), numPages()), Permissions.READ_WRITE);
         p.insertTuple(t);
         newPages.add(p);
         return newPages;

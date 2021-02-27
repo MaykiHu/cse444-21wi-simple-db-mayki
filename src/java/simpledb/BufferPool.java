@@ -27,9 +27,115 @@ public class BufferPool {
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
 
+    /** Default number in unit: ms for time-out based detection */
+    public static final int TIMEOUT = 8000;  // 8 seconds, 8 is my fav num :)
+
     private int numPages;  // max num of pages allowed in this buffer pool
     // collection of all pages in this pool
     private ConcurrentHashMap<PageId, Page> pages;
+    private LockManager lkManager;  // manage locking
+
+    /**
+     * A private help class to facilitate organizing the information of a lock
+     * */
+    private class Lock {
+        // public fields for private access within BufferPool by dot notation
+        public TransactionId tid;  // which tid this lock holds
+        public boolean isExclusive;  // if this lock is exclusive (T) or shared
+
+        public Lock(TransactionId tid, boolean isExclusive) {
+            this.tid = tid;
+            this.isExclusive = isExclusive;
+        }
+    }
+
+    /**
+     * A private help class to manage locks and locking/unlocking
+     * Method naming inspired by Java API LockManager naming conventions
+     * */
+    private class LockManager {
+        // public fields for private access within BufferPool by dot notation
+        // all locked pages stored by PageId
+        private ConcurrentHashMap<PageId, List<Lock>> pageLocks;
+
+        public LockManager() {
+            pageLocks = new ConcurrentHashMap<PageId, List<Lock>>();
+        }
+
+        // Tries to acquire lock; true if obtained, false otherwise
+        // @param tid the TransactionId of the transaction involved
+        // @param pid the PageId of the page which this lock involves
+        // @param isExclusive whether or not this lock is exclusive
+        public synchronized boolean acquireLock(TransactionId tid, PageId pid,
+                                                boolean isExclusive) {
+            // if not locked on pid, add and acquire lock
+            if (!pageLocks.containsKey(pid)) {
+                List<Lock> newLocks = new ArrayList<Lock>();
+                Lock newLock = new Lock(tid, isExclusive);
+                newLocks.add(newLock);
+                pageLocks.put(pid, newLocks);
+                return true;
+            }  // else, is locked by some tid (see if for existing transaction)
+            List<Lock> lockList = pageLocks.get(pid);  // this pg's locks
+            for (Lock lock : lockList) {
+                if (lock.tid == tid) {  // if we found the matching tid
+                    // if same lock states or existing is exclusive (dominates)
+                    if (lock.isExclusive == isExclusive || lock.isExclusive) {
+                        return true;
+                    } else if (lockList.size() == 1) {  // 1 shared transaction
+                        lock.isExclusive = true;  // upgrd. shared to exclusive
+                        return true;
+                    } else {  // trying to put an exclusive on existing shared!
+                        return false;  // not allowed >:(
+                    }
+                }
+            }  // couldn't find matching tid
+            // Add only if shared locks on shared locks (no exclusive)
+            if (!isExclusive && !lockList.get(0).isExclusive) {
+                Lock sharedLock = new Lock(tid, false);
+                lockList.add(sharedLock);
+                pageLocks.put(pid, lockList);
+                return true;
+            }
+            return false;
+        }
+
+        // Tries to release lock; true if released, false otherwise
+        // @param tid the TransactionId of the transaction involved
+        // @param pid the PageId of the page which this lock involves
+        public synchronized boolean releaseLock(TransactionId tid, PageId pid) {
+            List<Lock> lockList = pageLocks.get(pid);  // locks on this page
+            // Traverse all locks on pg and remove the matching lock
+            for (int i = 0; i < lockList.size(); i++) {
+                Lock currLock = lockList.get(i);
+                if (currLock.tid == tid) {
+                    lockList.remove(currLock);
+                    // if no more locks on pg after lock release, unmap this pg
+                    if (lockList.isEmpty()) {
+                        pageLocks.remove(pid);
+                    }
+                    return true;  // lock is released
+                }
+            }  // no matching lock found
+            return false;
+        }
+
+        // Determines whether the lock is held
+        // @param tid the TransactionId of the transaction involved
+        // @param pid the PageId of the page which this lock involves
+        public synchronized boolean isLockHeld(TransactionId tid, PageId pid) {
+            if (!pageLocks.containsKey(pid)) {  // if no locks on this pid
+                return false;
+            }  // else, there are locks on this pid; see if transaction matches
+            List<Lock> lockList = pageLocks.get(pid);  // locks on this page
+            for (Lock lock : lockList) {  // traverse for matching tid
+                if (lock.tid == tid) {
+                    return true;  // same lock held matching tid on pid
+                }
+            }  // made it out -- no matching lock held
+            return false;
+        }
+    }
 
     /**
      * Creates a BufferPool that caches up to numPages pages.
@@ -39,6 +145,7 @@ public class BufferPool {
     public BufferPool(int numPages) {
         this.numPages = numPages;
         pages = new ConcurrentHashMap<PageId, Page>();
+        lkManager = new LockManager();
     }
     
     public static int getPageSize() {
@@ -72,6 +179,19 @@ public class BufferPool {
      */
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
+        // Block and acquire lock before accessing to return page:
+        // exclusive lock if writing
+        boolean isExclusive = perm.equals(Permissions.READ_WRITE);
+        boolean hasLock = false;
+        long start = System.currentTimeMillis();
+        while (!hasLock) {
+            // TIMEOUT policy for deadlock (feeling homicidal :P)
+            if (System.currentTimeMillis() - start > TIMEOUT) {
+                throw new TransactionAbortedException();
+            }
+            hasLock = lkManager.acquireLock(tid, pid, isExclusive);
+        }
+        // Now, return page
         if (pages.containsKey(pid)) {  // if page is present
             return pages.get(pid);
         }  // page wasn't present, so look to add
@@ -79,7 +199,9 @@ public class BufferPool {
             evictPage();
         }  // Add page that was not present before
         DbFile file = Database.getCatalog().getDatabaseFile(pid.getTableId());
-        pages.put(pid, file.readPage(pid));
+        synchronized (pages) {
+            pages.put(pid, file.readPage(pid));
+        }
         return pages.get(pid);  // return added page
     }
 
@@ -93,8 +215,7 @@ public class BufferPool {
      * @param pid the ID of the page to unlock
      */
     public void releasePage(TransactionId tid, PageId pid) {
-        // some code goes here
-        // not necessary for lab1|lab2
+        lkManager.releaseLock(tid, pid);  // we call it :), not the clients
     }
 
     /**
@@ -103,15 +224,12 @@ public class BufferPool {
      * @param tid the ID of the transaction requesting the unlock
      */
     public void transactionComplete(TransactionId tid) throws IOException {
-        // some code goes here
-        // not necessary for lab1|lab2
+        transactionComplete(tid, true);  // always commit :P
     }
 
     /** Return true if the specified transaction has a lock on the specified page */
     public boolean holdsLock(TransactionId tid, PageId p) {
-        // some code goes here
-        // not necessary for lab1|lab2
-        return false;
+        return lkManager.isLockHeld(tid, p);  // :( why not call it pid not p
     }
 
     /**
@@ -123,8 +241,23 @@ public class BufferPool {
      */
     public void transactionComplete(TransactionId tid, boolean commit)
         throws IOException {
-        // some code goes here
-        // not necessary for lab1|lab2
+        if (commit) {
+            flushPages(tid);
+        } else {  // abort!  don't commit, restore to on-disk state
+            for (PageId pid : pages.keySet()) {
+                Page p = pages.get(pid);
+                if (p.isDirty() == tid) {  // if dirtied by this tid
+                    Page diskPage = Database.getCatalog()
+                            .getDatabaseFile(pid.getTableId()).readPage(pid);
+                    pages.put(pid, diskPage);  // restored to disk page!
+                }
+            }
+        }  // Release locks
+        for (PageId pid : pages.keySet()) {  // traverse pages
+            if (holdsLock(tid, pid)) {
+                releasePage(tid, pid);
+            }
+        }
     }
 
     // Private helper method to add dirtied pages to the cache
@@ -134,7 +267,9 @@ public class BufferPool {
     private void addDirtied(TransactionId tid, List<Page> dirtiedPages) {
         for (Page p : dirtiedPages) {  // mark pages that were dirtied
             p.markDirty(true, tid);
-            pages.put(p.getId(), p);  // add/replace page dirtied to the cache
+            synchronized (pages) {
+                pages.put(p.getId(), p);  // add/replace pg dirtied to cache
+            }
         }
     }
 
@@ -157,7 +292,7 @@ public class BufferPool {
         throws DbException, IOException, TransactionAbortedException {
         DbFile f = Database.getCatalog().getDatabaseFile(tableId);
         List<Page> dirtiedPages = f.insertTuple(tid, t);
-        addDirtied(tid, dirtiedPages);
+        addDirtied(tid, dirtiedPages);  // marks dirty as well :)
     }
 
     /**
@@ -178,7 +313,7 @@ public class BufferPool {
         DbFile f = Database.getCatalog().getDatabaseFile(
                     t.getRecordId().getPageId().getTableId());
         List<Page> dirtiedPages = f.deleteTuple(tid, t);
-        addDirtied(tid, dirtiedPages);
+        addDirtied(tid, dirtiedPages);  // marks dirty as well :)
     }
 
     /**
@@ -221,8 +356,12 @@ public class BufferPool {
     /** Write all pages of the specified transaction to disk.
      */
     public synchronized  void flushPages(TransactionId tid) throws IOException {
-        // some code goes here
-        // not necessary for lab1|lab2
+        for (PageId pid : pages.keySet()) {
+            Page p = pages.get(pid);
+            if (p.isDirty() == tid) {  // dirtied by this transaction
+                flushPage(pid);
+            }
+        }
     }
 
     /**
@@ -230,14 +369,16 @@ public class BufferPool {
      * Flushes the page to disk to ensure dirty pages are updated on disk.
      */
     private synchronized  void evictPage() throws DbException {
-        // order removed not guaranteed :( bc hashmap
-        PageId pid = pages.keySet().iterator().next();
-        try {
-            flushPage(pid);  // if dirty, flush
-        } catch (Exception e) {
-            throw new DbException("Could not flush page");
-        }
-        discardPage(pid);  // remove page from BufferPool
+        // order removed not guaranteed :( bc hashmap, keeping this way
+        Iterator<PageId> pgItr = pages.keySet().iterator();
+        while (pgItr.hasNext()) {
+            PageId pid = pgItr.next();  // grab this page id
+            if (pages.get(pid).isDirty() == null) {  // page is not dirty
+                discardPage(pid);  // evict non-dirty page
+                return;  // exit
+            }  // else, page is dirty so go to next page
+        }  // ended up that all pages were dirty!
+        throw new DbException("Failed to evict page; all pages dirty! ;-;");
     }
 
 }
