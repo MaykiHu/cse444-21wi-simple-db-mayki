@@ -1,0 +1,48 @@
+Lab Overview:
+The main files touched were BufferPool, Heapfile, along with the creation of 
+private Lock class and LockManager class to manage the locks. I'll be outright, 
+I don't understand the synchronized but I've read a little to have the methods 
+have synchronized based on edstem. Otherwise, the Lock class is a storage to hold 
+information on the transaction and whether the lock is exclusive or shared. Then, 
+the LockManager maps all of the Locks that are on a page (meaning, if a LockManager 
+has a page mapped to, that means there are locks on that page -> I implemented this 
+way so I could ensure no pages have no locks to avoid null accesses / errors). This 
+LockManager also allows for managing the locks by adding/acquiring a new lock to a 
+page, removing a lock from the page, and lastly indicating if a lock is held on a 
+page (for access by BufferPool method holdsLock). The BufferPool then would be the 
+only one who needs to access this LockManager because Heapfile and other methods use 
+getPage, so BufferPool's methods which puts/removes from the buffer (like getPage, 
+flush, etc.) need to manage the locks accordingly. Permissions play an important 
+part in knowing how to manage the locks overall, as READ_WRITE needs to be exclusive 
+and READ_ONLY can be shared which is why we have them in BufferPool, HeapFile, and 
+any parts that access data where the tuples are. Having the lock system then centralized 
+from the BufferPool then means the deadlock policy can also be where acquiring the lock 
+takes place -- in the BufferPool's getPage!
+
+Implementation:
+Going more into the deadlock policy, I did the simple homicidal timeout and throwing 
+the error. It was mentioned in the spec and I thought it was funny and simple, so I 
+did that. As for locking granularity, I did it by pages (PageId) and differentiated the 
+locks as all locks on a page, and pages that I was managing in the LockManager should be 
+non-empty (meaning >= 1 lock) since I didn't want to accidentally nor is it 
+necessary for space to have a page that isn't locked in the LockManager! I decided to 
+make a class for Lock to hold information on the type of lock and the transaction to 
+be an organized structure that LockManager managed by PageId mapping and a list of 
+locks on the page (list bc can have many shared locks, so expandable). :/ I'm not sure 
+if I say it here, but when I was implementing acquireLock I was considering acquiring 
+a lock by its transaction and type of lock so I might have missed a case there since 
+I don't pass the final exercise tests. :(  It's been a rough time.
+
+Unit Test:
+An additional unit test could be acquiring a write lock and a write lock on the same page. 
+But I suppose this might be redundant since we have a write lock and read lock on same page.
+
+API Changes:
+N/A
+
+Feedback?:
+I don't know if this is really feedback; but, since I don't know if I exactly did this lab 
+successfully to run the next lab, I know previous classes had like bit files or some sort 
+that were encrypted and could replace the previous lab if it was incorrect so students could 
+work on the subsequent labs without dependency. Would this be possible? Or because of 
+how implementation might be so varied that this might not be possible? Thanks!!
