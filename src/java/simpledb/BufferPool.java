@@ -241,8 +241,17 @@ public class BufferPool {
      */
     public void transactionComplete(TransactionId tid, boolean commit)
         throws IOException {
-        if (commit) {
-            flushPages(tid);
+        if (commit) {  // removed flushPages, instead do log tracking
+            for (PageId pid : pages.keySet()) {
+                Page p = pages.get(pid);
+                if (p.isDirty() == tid) {  // dirtied by this transaction
+                    Database.getLogFile().logWrite(tid, p.getBeforeImage(), p);
+                    Database.getLogFile().force();
+                    // use current page contents as the before-image
+                    // for the next transaction that modifies this page.
+                    p.setBeforeImage();
+                }
+            }
         } else {  // abort!  don't commit, restore to on-disk state
             for (PageId pid : pages.keySet()) {
                 Page p = pages.get(pid);
@@ -346,7 +355,11 @@ public class BufferPool {
     private synchronized  void flushPage(PageId pid) throws IOException {
         Page p = pages.get(pid);
         TransactionId dirtyId = p.isDirty();
-        if (dirtyId != null) {  // if page is dirty
+        if (p != null && dirtyId != null) {  // if dirty page is executing
+            // append an update record to the log, with
+            // a before-image and after-image. (had to modify name to match)
+            Database.getLogFile().logWrite(dirtyId, p.getBeforeImage(), p);
+            Database.getLogFile().force();
             Database.getCatalog().getDatabaseFile(pid.getTableId())
                     .writePage(p);  // 1) write dirty page to disk
             p.markDirty(false, null);  // 2) mark written not dirty
@@ -374,6 +387,12 @@ public class BufferPool {
         while (pgItr.hasNext()) {
             PageId pid = pgItr.next();  // grab this page id
             if (pages.get(pid).isDirty() == null) {  // page is not dirty
+                try {
+                    flushPage(pid);
+                } catch (IOException e) {
+                    throw new DbException("IOException occurred: " +
+                            e.getMessage());
+                }
                 discardPage(pid);  // evict non-dirty page
                 return;  // exit
             }  // else, page is dirty so go to next page
