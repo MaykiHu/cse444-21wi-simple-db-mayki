@@ -2,7 +2,9 @@
 
 ### Due: Thursday, March 18th, 2021 (hard deadline, no late days allowed)
 
-### Project Guidelines: This lab is part of the final project. See the final project instructions [here](https://courses.cs.washington.edu/courses/cse444/21wi/content/Project.html) for details.
+### ~~Project Guidelines: This lab is part of the final project. See the final project instructions [here](https://courses.cs.washington.edu/courses/cse444/21wi/content/Project.html)  for details.~~
+
+### This quarter lab 5 and the final report are separate. Since the lowest lab grade is now dropped, you may choose not to do lab 5. You must still turn in the final report by Thursday, March 18th. ###
 
 In this lab, you will implement a query optimizer on top of SimpleDB. The main tasks include implementing a selectivity estimation framework and a cost-based optimizer. You have freedom as to exactly what you implement, but we recommend using something similar to the Selinger cost-based optimizer discussed in class.
 
@@ -68,7 +70,7 @@ In the exercises to come, you will implement the methods that help `physicalPlan
 
 When you launch SimpleDB, the entry point of the application is simpledb.Parser.main().
 
-Starting from that entry point, describe the life of a query from its submission by the user to its execution. For this, list the sequence of methods that are invoked. For each method, describe its primary functions. When you describe the methods that build the physical query plan, **discuss how the plan is built**.
+Starting from that entry point, describe the life of a query from its submission by the user to its execution. For this, list the sequence of methods that are invoked. For each method, describe its primary functions. When you describe the methods that build the physical query plan, **discuss how the plan is built**. Write the answers in your lab 5 writeup document.
 
 To help you, we provide the description of the first few methods. In general, however, it is up to you to decide on the appropriate level of detail for your description. Keep in mind that the goal is to demonstrate your understanding of the _optimizer_.
 
@@ -304,13 +306,15 @@ where a.id=c.pid and c.mid=m.mid and m.did=d.id
 and a.lname='Spicer';
 ```
 
-In section 2 of your report, show the query plan that your optimizer selected. Explain why your optimizer selected that plan. Be careful as the plan may be different for the 1%, 0.1%, and 10% datasets (you do not need to test with all the datasets, just pick one).
+In your writeup, show the query plan that your optimizer selected. Explain why your optimizer selected that plan. Be careful as the plan may be different for the 1%, 0.1%, and 10% datasets (you do not need to test with all the datasets, just pick one).
 
 6.2 Execute another SQL query of your choice over the IMDB database.
 
  Show the query plan that your optimizer generates. Discuss why your optimizer generates that plan. Try to find an interesting SQL query with a combination of joins and selections.
 
-### 2.5 Project Extensions
+### 2.5 Project Extensions 
+
+### This quarter (winter 2021) the extensions in this section are optional. If you choose not to do them we will redistribute the point breakdown below to the mandatory section.
 
 In this section, we describe several possible extensions to your query optimizer. These are less well defined than the previous exercises but give you a chance to show off your mastery of query optimization!
 
@@ -335,8 +339,6 @@ You have now completed this lab. Good work!
 
 ## 3\. Logistics
 
-You must submit your code (see below) as well as the final project report as per the instructions [here](https://courses.cs.washington.edu/courses/cse444/21wi/content/Project.html). There is no separate writeup for this lab, just the final report document file included in your directory.
-
 ### 3.1\. Collaboration
 
 All CSE 444 labs are to be completed INDIVIDUALLY! However, you may discuss your high-level approach to solving each lab with other students in the class.
@@ -344,12 +346,12 @@ All CSE 444 labs are to be completed INDIVIDUALLY! However, you may discuss your
 ### 3.2\. Submitting your assignment
 
 
-You may submit your code multiple times; we will use the latest version you submit that arrives before the deadline. Place the your project report called `lab5-report.pdf` in the top level of your repository.
+You may submit your code multiple times; we will use the latest version you submit that arrives before the deadline. Place the your project report called `lab5-writeup.pdf` in the top level of your repository.
 
-**Important**: In order for your report to be added to the git repo, you need to explicitly add it:
+**Important**: In order for your writeup to be added to the git repo, you need to explicitly add it:
 
 ```sh
-$ git add lab5-report.pdf
+$ git add lab5-writeup.pdf
 ```
 
 You also need to explicitly add any other files you create, such as new `*.java` files.
@@ -400,8 +402,6 @@ We ask you, therefore, to do this lab with an adventurous mindset. Don't get mad
 You can also post on the class message board if you feel you have run into a bug.
 
 ### 3.4 Grading
-
-See the final project instructions [here](https://courses.cs.washington.edu/courses/cse444/21wi/content/Project.html).
 
 **Important:** Before testing, we will replace your `build.xml`, `HeapFileEncoder.java`, and the entire contents of the `test/` directory with our version of these files! This means you cannot change the format of `.dat` files! You should therefore be careful changing our APIs. This also means you need to test whether your code compiles with our test programs. In other words, during the grading process we will clone your repository, replace the files mentioned above, compile it, and then grade it. It will look roughly like this:
 
