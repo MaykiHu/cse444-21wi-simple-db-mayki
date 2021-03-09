@@ -467,6 +467,31 @@ public class LogFile {
             synchronized(this) {
                 preAppend();
                 // some code goes here
+                // if no matching tid to log
+                if (!tidToFirstLogRecord.containsKey(tid.getId())) {
+                    throw new NoSuchElementException();
+                }
+                long firstLog = tidToFirstLogRecord.get(tid.getId());
+                long offset = raf.length();
+                // Jump by offsets, stopping after firstLog read
+                while (offset != firstLog) {
+                    // Seek to last long to get starting pos. of log
+                    raf.seek(offset - LONG_SIZE);
+                    offset = raf.readLong();
+                    // Seek to starting log and get log data
+                    raf.seek(offset);
+                    int logType = raf.readInt();
+                    long logTid = raf.readLong();
+                    // If an update record associated with aborting tid
+                    if (logTid == tid.getId() && logType == UPDATE_RECORD) {
+                        Page p = readPageData(raf);  // get before-image
+                        PageId pid = p.getId();
+                        Database.getCatalog().getDatabaseFile(pid.getTableId())
+                                .writePage(p);  // write before-image
+                        Database.getBufferPool().discardPage(pid);  // discard
+                    }
+                }  // finished reading logs
+                raf.seek(raf.length());  // reset read pointer
             }
         }
     }

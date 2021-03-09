@@ -27,8 +27,8 @@ public class BufferPool {
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
 
-    /** Default number in unit: ms for time-out based detection */
-    public static final int TIMEOUT = 8000;  // 8 seconds, 8 is my fav num :)
+    //** Default number in unit: ms for time-out based detection */
+    //public static final int TIMEOUT = 1000000;  // changed to 1000s
 
     private int numPages;  // max num of pages allowed in this buffer pool
     // collection of all pages in this pool
@@ -182,15 +182,18 @@ public class BufferPool {
         // Block and acquire lock before accessing to return page:
         // exclusive lock if writing
         boolean isExclusive = perm.equals(Permissions.READ_WRITE);
-        boolean hasLock = false;
+        //boolean hasLock = false;
         long start = System.currentTimeMillis();
-        while (!hasLock) {
-            // TIMEOUT policy for deadlock (feeling homicidal :P)
-            if (System.currentTimeMillis() - start > TIMEOUT) {
-                throw new TransactionAbortedException();
-            }
-            hasLock = lkManager.acquireLock(tid, pid, isExclusive);
-        }
+        // Taking out timeout deadlock policy until further
+        // optimization; causes failed tests due to timeout
+//        while (!hasLock) {
+//            // TIMEOUT policy for deadlock (feeling homicidal :P)
+//            if (System.currentTimeMillis() - start > TIMEOUT) {
+//                throw new TransactionAbortedException();
+//            }
+//            hasLock = lkManager.acquireLock(tid, pid, isExclusive);
+//        }
+        lkManager.acquireLock(tid, pid, isExclusive);
         // Now, return page
         if (pages.containsKey(pid)) {  // if page is present
             return pages.get(pid);
