@@ -82,6 +82,7 @@ public class LogFile {
     static final int UPDATE_RECORD = 3;
     static final int BEGIN_RECORD = 4;
     static final int CHECKPOINT_RECORD = 5;
+    static final int COMP_RECORD = 6;  // our compensating record
     static final long NO_CHECKPOINT_ID = -1;
 
     final static int INT_SIZE = 4;
@@ -120,6 +121,30 @@ public class LogFile {
         // may not match tableids in the current catalog.
     }
 
+    /** Write a COMPENSATE record to disk for the specified tid and page
+     (with provided after image)
+     @param tid The tid performing the write
+     @param after The after image of the page
+     Inspired by logWrite
+     */
+    private synchronized void logComp(Long tid, Page after)
+            throws IOException {
+        preAppend();
+        /* update record conists of
+
+           record type
+           transaction id
+           after page data
+           start offset
+        */
+        raf.writeInt(COMP_RECORD);
+        raf.writeLong(tid);
+
+        writePageData(raf,after);
+        raf.writeLong(currentOffset);
+        currentOffset = raf.getFilePointer();
+    }
+
     // we're about to append a log record. if we weren't sure whether the
     // DB wants to do recovery, we're sure now -- it didn't. So truncate
     // the log.
@@ -138,7 +163,7 @@ public class LogFile {
     public synchronized int getTotalRecords() {
         return totalRecords;
     }
-    
+
     /** Write an abort record to the log for the specified tid, force
         the log to disk, and perform a rollback
         @param tid The aborting transaction.
@@ -489,9 +514,11 @@ public class LogFile {
                         Database.getCatalog().getDatabaseFile(pid.getTableId())
                                 .writePage(p);  // write before-image
                         Database.getBufferPool().discardPage(pid);  // discard
+                        logComp(logTid, p);  // write compensating log rec.
                     }
                 }  // finished reading logs
                 raf.seek(raf.length());  // reset read pointer
+                currentOffset = raf.getFilePointer();
             }
         }
     }
@@ -519,8 +546,62 @@ public class LogFile {
             synchronized (this) {
                 recoveryUndecided = false;
                 // some code goes here
+                // for building set of active transactions
+                Set<Long> activeTids = new HashSet<Long>();
+                // Start from last checkpoint (if any)
+                raf.seek(0);
+                long lastCheckpnt = raf.readLong();
+                if (lastCheckpnt != NO_CHECKPOINT_ID) {  // checkpoint exists
+                    // Go to checkpoint log's data
+                    raf.seek(lastCheckpnt + INT_SIZE + LONG_SIZE);
+                    int numTids = raf.readInt();
+                    for (int i = 0; i < numTids; i++) {
+                        activeTids.add(raf.readLong());
+                    }
+                    raf.readLong();  // move to next record
+                }
+                // Scan & Redo
+                redo(activeTids);
+                // Undo
+                currentOffset = raf.length();
+                for (Iterator<Long> it = activeTids.iterator(); it.hasNext(); ) {
+                    Long tid = it.next();
+                    if (tidToFirstLogRecord.containsKey(tid)) {
+                        logAbort(new TransactionId(tid));
+                    }
+                }
             }
          }
+    }
+
+    // Private helper to scan and redo transactions
+    private void redo(Set<Long> active) throws IOException {
+        while (raf.getFilePointer() < raf.length()) {
+            int type = raf.readInt();
+            long tid = raf.readLong();
+            switch (type) {
+                case BEGIN_RECORD:
+                    active.add(tid);
+                    break;
+                case COMMIT_RECORD:
+                    active.remove(tid);
+                    break;
+                case UPDATE_RECORD:
+                    Page before = readPageData(raf);
+                    Page after = readPageData(raf);
+                    PageId pid = before.getId();
+                    Database.getCatalog().getDatabaseFile(pid.getTableId())
+                            .writePage(after);
+                    Database.getBufferPool().discardPage(pid);
+                    break;
+                case COMP_RECORD:
+                    after = readPageData(raf);
+                    pid = after.getId();
+                    Database.getCatalog().getDatabaseFile(pid.getTableId())
+                            .writePage(after);
+            }
+            raf.readLong();  // skip to next record
+        }
     }
 
     /** Print out a human readable represenation of the log */
