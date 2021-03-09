@@ -1,0 +1,22 @@
+Implementation & Design Decisions:
+Rollback was pretty explanatory due to the walkthrough on the readme and 
+the prior part that needed to modify BufferPool flushPages and 
+transactionComplete. I decided to follow the design decision to make a 
+compensating log just similar to the logWrite for Update and followed 
+a similar structure/implementation with only one image (after image) since 
+it was recommended to make recovery easier. I guess what was difficult was 
+just understanding and implementing recovery. I don't think I get the concept 
+of it, so I just brute forced it and ended up with a bunch of errors. I 
+probably should have implemented the print to help debug more. Additionally, 
+I found that my deadlock timeout policy caused rollback to fail and didn't 
+end up implementing graphs so removing it passes tests..
+
+Outside of LogFile I did the changes to BufferPool as mentioned  by spec, and 
+then since logAbort uses TransactionId and since I wanted to use this method 
+I had to make a TransactionId constructor capable of accepting Long for recovery.
+
+A unit test that can improve these sets might actually be for printing log values 
+to make sure we're accessing the correct offsets in records.
+
+:( It's partly my fault not finishing in time, and some circumstances out of control 
+but already been through so much that I'll probably end up dropping this one.
