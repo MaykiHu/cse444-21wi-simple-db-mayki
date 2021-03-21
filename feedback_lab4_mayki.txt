@@ -1,0 +1,9 @@
+Feedback for: mayki
+--------------------------------------------------------------
+Total Score (%): 57
+Unit Test Score (out of 38): 0
+System Test Score (out of 24): 5
+Code Score (out of 10): 8
+Writeup Score (out of 10): 9
+--------------------------------------------------------------
+Code Feedback:  -40: TestAbortCrash, TestCommitAbortCommitCrash, TestOpenCrash, TestOpenCommitCheckpointOpenCrash, TestOpenCommitOpenCrash in LogTest failing  -2: Still evicting non-dirty pages  Writeup Feedback:  Good Job overall! Would like more detail on what you learned throughout the lab. Not just implementation
